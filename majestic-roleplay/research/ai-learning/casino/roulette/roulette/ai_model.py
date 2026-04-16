@@ -37,6 +37,7 @@ MULTIPLIERS = {'2X': 2, '3X': 3, '5X': 5, '10X': 10}
 INPUT_FIELD_CENTER = (560, 889)
 BET_BUTTON_CENTER = (801, 983)
 
+
 # ==========================================
 # 🧠 ИИ-МОЗГ С ВИРТУАЛЬНЫМ БАЛАНСОМ
 # ==========================================
@@ -47,23 +48,16 @@ class AIBrain(nn.Module):
         self.lstm = nn.LSTM(16, 32, batch_first=True)
         self.fc = nn.Linear(32, 4)
         self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
-        
-        # История и обучение
+
         self.history = []
-        
-        # 💰 Виртуальный баланс для обучения
         self.virtual_balance = 1000.0
         self.virtual_bet_amount = 10
         self.virtual_target = None
         self.virtual_total_bets = 0
         self.virtual_wins = 0
-        
-        # 🎯 Реальный баланс для твоей тактики
         self.real_balance = 200.0
         self.real_bet_amount = 10
         self.real_target = '10X'
-        
-        # 📊 Статистика
         self.total_preds = 0
         self.correct_preds = 0
 
@@ -78,10 +72,10 @@ class AIBrain(nn.Module):
         if len(self.history) < 9: return
         seqs, tgts = [], []
         for i in range(len(self.history) - 8):
-            seqs.append(self.history[i:i+8])
-            tgts.append(self.history[i+8])
+            seqs.append(self.history[i:i + 8])
+            tgts.append(self.history[i + 8])
         if len(seqs) < 5: return
-        
+
         X = torch.LongTensor(seqs[-50:])
         Y = torch.LongTensor(tgts[-50:])
         self.opt.zero_grad()
@@ -94,30 +88,30 @@ class AIBrain(nn.Module):
         self.opt.step()
 
     def predict(self):
-        if len(self.history) < 8: return None, 0.0, {}
+        # ✅ Всегда возвращаем 4 значения
+        if len(self.history) < 8: 
+            return None, 0.0, {}, {}
+        
         X = torch.LongTensor([self.history[-8:]])
         with torch.no_grad():
             emb = self.embedding(X)
             out, _ = self.lstm(emb)
             logits = self.fc(out[:, -1, :])
             probs = F.softmax(logits, dim=1)[0]
-        
-        # 🎯 Расчёт ожидаемой ценности (EV) для каждого исхода
+
         ev = {}
         for i, label in REV_LABEL_MAP.items():
             prob = float(probs[i])
             mult = MULTIPLIERS[label]
-            ev[label] = prob * mult  # EV = вероятность * множитель
-        
-        # Выбираем лучший по EV, а не по вероятности
+            ev[label] = prob * mult
+
         best = max(ev, key=ev.get)
         confidence = ev[best]
+        probs_dict = {REV_LABEL_MAP[i]: float(probs[i]) * 100 for i in range(4)}
         
-        probs_dict = {REV_LABEL_MAP[i]: float(probs[i])*100 for i in range(4)}
-        return best, confidence, probs_dict, ev
+        return best, confidence, probs_dict, ev  # ✅ 4 значения
 
     def place_virtual_bet(self, amount, target):
-        """Разместить виртуальную ставку для обучения"""
         if target not in LABEL_MAP: return False
         self.virtual_bet_amount = amount
         self.virtual_target = target
@@ -126,30 +120,25 @@ class AIBrain(nn.Module):
         return True
 
     def process_virtual_result(self, actual_label):
-        """Обработать результат виртуальной ставки"""
         if self.virtual_target is None: return 0
-        
         reward = 0
         if actual_label == self.virtual_target:
             mult = MULTIPLIERS[actual_label]
             win_amount = self.virtual_bet_amount * mult
             self.virtual_balance += win_amount
-            reward = win_amount - self.virtual_bet_amount  # Чистая прибыль
+            reward = win_amount - self.virtual_bet_amount
             self.virtual_wins += 1
         else:
-            reward = -self.virtual_bet_amount  # Потеря ставки
-        
+            reward = -self.virtual_bet_amount
         self.virtual_target = None
         return reward
 
     def place_real_bet(self, amount):
-        """Разместить реальную ставку по твоей тактике"""
         self.real_bet_amount = amount
         self.real_balance -= amount
         return True
 
     def process_real_result(self, actual_label):
-        """Обработать результат реальной ставки"""
         if actual_label == self.real_target:
             mult = MULTIPLIERS[actual_label]
             win_amount = self.real_bet_amount * mult
@@ -184,11 +173,13 @@ class AIBrain(nn.Module):
                 self.total_preds = stats.get('total', 0)
                 self.correct_preds = stats.get('correct', 0)
                 return True
-            except: pass
+            except:
+                pass
         return False
 
+
 # ==========================================
-# 💰 СИСТЕМА СТАВОК (Моя тактика 10X)
+# 💰 СИСТЕМА СТАВОК
 # ==========================================
 class BettingSystem:
     def __init__(self):
@@ -235,8 +226,9 @@ class BettingSystem:
             self.attempts = 0
         return False
 
+
 # ==========================================
-# 🛡️ МЕНЕДЖЕР ВЫЖИВАНИЯ (БЕЗ обновления UI)
+# 🛡️ МЕНЕДЖЕР ВЫЖИВАНИЯ
 # ==========================================
 class SurvivalManager:
     def __init__(self, bot):
@@ -283,12 +275,12 @@ class SurvivalManager:
             self._press(0x71, 0x3C); time.sleep(2)
             self._click(147, 359); time.sleep(2)
             self._click(158, 499); time.sleep(7)
-            # ✅ НЕ обновляем name_check.png! Он создан при F4 и всегда одинаковый
             self.bot.logger.info("✅ Выживание завершено.\n")
         except Exception as e:
             self.bot.logger.error(f"❌ Ошибка выживания: {e}")
         finally:
             self.bot.is_busy = False
+
 
 # ==========================================
 # 🤖 ГЛАВНЫЙ БОТ
@@ -301,30 +293,31 @@ class RouletteBot:
         self.name_check = os.path.join(folder, "name_check.png")
         self.state_file = os.path.join(folder, "state.pkl")
         self.ai_file = os.path.join(folder, "ai_model.pt")
-        
+
         logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(message)s',
                             handlers=[logging.FileHandler(self.log_file, encoding='utf-8'), logging.StreamHandler()])
         self.logger = logging.getLogger("Bot")
-        
+
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w', newline='', encoding='utf-8') as f:
-                csv.writer(f).writerow(["Time", "ID", "Result", "AI_Pred", "AI_EV", "VirtualBal", "RealBal", "BetActive", "Win"])
+                csv.writer(f).writerow(
+                    ["Time", "ID", "Result", "AI_Pred", "AI_EV", "VirtualBal", "RealBal", "BetActive", "Win"])
 
         self.ai = AIBrain()
         self.betting = BettingSystem()
         self.survival = SurvivalManager(self)
         self.survival.start()
-        
+
         self.last_game_id = 0
         self.is_busy = False
         self.running = False
-        
+
         self.load_state()
         self.logger.info("🤖 Бот запущен. F4 - Старт | 1+2 - Выход")
-        self.logger.info(f"💰 Реальный баланс: ${self.ai.real_balance:.0f} | 🎮 Виртуальный: ${self.ai.virtual_balance:.0f}")
+        self.logger.info(
+            f"💰 Реальный баланс: ${self.ai.real_balance:.0f} | 🎮 Виртуальный: ${self.ai.virtual_balance:.0f}")
 
     def _save_ui_ref(self):
-        """Создаёт эталон ТОЛЬКО при первом запуске (F4)"""
         try:
             time.sleep(0.5)
             with mss.mss() as sct:
@@ -366,7 +359,6 @@ class RouletteBot:
                     self.ai.virtual_balance = state['virt_bal']
             except:
                 pass
-        
         if not self.ai.load(self.ai_file):
             self.logger.warning("⚠️ Не удалось загрузить ИИ, начинаю с нуля")
             self.ai = AIBrain()
@@ -402,7 +394,7 @@ class RouletteBot:
             b, g, r = map(int, avg)
             min_d, best = float('inf'), "Unknown"
             for name, (tb, tg, tr) in COLOR_TARGETS.items():
-                d = (b-tb)**2 + (g-tg)**2 + (r-tr)**2
+                d = (b - tb) ** 2 + (g - tg) ** 2 + (r - tr) ** 2
                 if d < min_d: min_d, best = d, name
             res.append(best if min_d < 8000 else "Empty")
         return res
@@ -418,81 +410,89 @@ class RouletteBot:
                 history = self._get_history(sct)
                 clean_hist = [x for x in history if x != "Empty"]
                 last_result = clean_hist[0] if clean_hist else "Unknown"
-                
+
                 self.logger.info(f"\n🔄 Игра #{current_id} | Результат: {last_result}")
-                
+
                 # 1. Обучаем ИИ
                 self.ai.add_result(last_result)
-                
-                # 2. Прогноз ИИ с учётом ожидаемой ценности (EV)
+
+                # 2. Прогноз ИИ (теперь всегда 4 значения)
                 ai_pred, ai_ev, ai_probs, ev_dict = self.ai.predict()
-                
+
                 if ai_pred:
                     self.ai.total_preds += 1
                     if ai_pred == last_result:
                         self.ai.correct_preds += 1
-                    
                     status = "✅" if ai_pred == last_result else "❌"
                     acc = (self.ai.correct_preds / self.ai.total_preds * 100) if self.ai.total_preds else 0
-                    
-                    # 🎯 Показываем EV для каждого исхода
-                    ev_str = " | ".join([f"{k}: EV={v:.2f}" for k, v in sorted(ev_dict.items(), key=lambda x: x[1], reverse=True)])
-                    
+                    ev_str = " | ".join(
+                        [f"{k}: EV={v:.2f}" for k, v in sorted(ev_dict.items(), key=lambda x: x[1], reverse=True)])
                     self.logger.info(f"🤖 AI: Лучший по EV: {ai_pred} (EV={ai_ev:.2f}) {status}")
-                    self.logger.info(f"📊 Вероятности: {' | '.join([f'{k}:{v:.1f}%' for k,v in sorted(ai_probs.items(), key=lambda x: x[1], reverse=True)])}")
+                    self.logger.info(
+                        f"📊 Вероятности: {' | '.join([f'{k}:{v:.1f}%' for k, v in sorted(ai_probs.items(), key=lambda x: x[1], reverse=True)])}")
                     self.logger.info(f"📈 Ожидаемая ценность: {ev_str}")
                     self.logger.info(f"🎯 Точность: {acc:.1f}% ({self.ai.correct_preds}/{self.ai.total_preds})")
-                    
-                    # 💰 Виртуальная ставка ИИ (для обучения)
-                    if ai_ev > 1.5:  # Если EV > 1.5, ИИ рискует
-                        bet_amount = min(1000, max(10, int(ai_ev * 50)))  # Ставка пропорциональна уверенности
+
+                    if ai_ev > 1.5:
+                        bet_amount = min(1000, max(10, int(ai_ev * 50)))
                         self.ai.place_virtual_bet(bet_amount, ai_pred)
                         self.logger.info(f"🎮 AI виртуальная ставка: ${bet_amount} на {ai_pred}")
-                    
-                    # Обработка результата виртуальной ставки
                     if self.ai.virtual_target:
                         reward = self.ai.process_virtual_result(last_result)
                         if reward > 0:
-                            self.logger.info(f"💰 AI виртуальный выигрыш: +${reward:.0f} (Баланс: ${self.ai.virtual_balance:.0f})")
+                            self.logger.info(
+                                f"💰 AI виртуальный выигрыш: +${reward:.0f} (Баланс: ${self.ai.virtual_balance:.0f})")
                         elif reward < 0:
-                            self.logger.info(f"📉 AI виртуальный проигрыш: ${reward:.0f} (Баланс: ${self.ai.virtual_balance:.0f})")
-                
-                # 3. Твоя тактика 10X (реальные деньги)
+                            self.logger.info(
+                                f"📉 AI виртуальный проигрыш: ${reward:.0f} (Баланс: ${self.ai.virtual_balance:.0f})")
+
+                # 3. Твоя тактика 10X
+                just_won = False  # ✅ Флаг: только что выиграли?
                 if self.betting.active:
-                    won = self.betting.process_result(last_result == "10X")
-                    if won:
-                        profit = self.ai.process_real_result(last_result)
-                        self.logger.info(f"💰🎉 ТВОЙ ВЫИГРЫШ! +${profit:.0f} | Реальный баланс: ${self.ai.real_balance:.0f}")
+                    if last_result == "10X":
+                        won = self.betting.process_result(True)
+                        if won:
+                            profit = self.ai.process_real_result(last_result)
+                            self.logger.info(
+                                f"💰🎉 ТВОЙ ВЫИГРЫШ! +${profit:.0f} | Реальный баланс: ${self.ai.real_balance:.0f}")
+                            just_won = True  # ✅ Запоминаем победу
                     else:
-                        self.logger.info(f"📉 Не 10X. Уровень: ${self.betting.amounts[self.betting.level]}, Попытка: {self.betting.attempts}")
-                        self.ai.process_real_result(last_result)  # Записываем убыток
+                        self.betting.process_result(False)
+                        self.logger.info(
+                            f"📉 Не 10X. Уровень: ${self.betting.amounts[self.betting.level]}, Попытка: {self.betting.attempts}")
+                        self.ai.process_real_result(last_result)
                         self.logger.info(f"💸 Реальный баланс: ${self.ai.real_balance:.0f}")
-                
-                # Активация твоей тактики
-                if not self.betting.active:
-                    no_10x = sum(1 for h in reversed(self.ai.history) if h != 3)
+
+                # ✅ Активация ТОЛЬКО если не выиграли в этом раунде
+                if not self.betting.active and not just_won:
+                    # Считаем ПОДРЯД идущие НЕ-10X от конца истории
+                    no_10x = 0
+                    for h in reversed(self.ai.history):
+                        if h == 3:  # 10X
+                            break
+                        no_10x += 1
                     if no_10x >= 20:
                         self.betting.activate()
                         self.logger.info(f"🔥 ТРИГГЕР! 10X не было {no_10x} игр. Начинаю серию ставок!")
-                
-                # Размещение реальной ставки
+
+                # Размещение ставки
                 if self.betting.active:
-                    self.betting.place(lambda x,y: (
-                        win32api.SetCursorPos((x,y)),
+                    self.betting.place(lambda x, y: (
+                        win32api.SetCursorPos((x, y)),
                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0),
                         time.sleep(0.05),
                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                     )[0])
                     self.ai.place_real_bet(self.betting.amounts[self.betting.level])
                     self.logger.info(f"💰 Твоя реальная ставка: ${self.betting.amounts[self.betting.level]} на 10X")
-                
-                # 📊 Итоговый баланс
-                self.logger.info(f"💰 БАЛАНСЫ: Реальный: ${self.ai.real_balance:.0f} | Виртуальный: ${self.ai.virtual_balance:.0f}")
+
+                self.logger.info(
+                    f"💰 БАЛАНСЫ: Реальный: ${self.ai.real_balance:.0f} | Виртуальный: ${self.ai.virtual_balance:.0f}")
                 self.logger.info("─" * 60)
-                
+
                 self.last_game_id = current_id
                 self.save_state()
-                    
+
         except Exception as e:
             self.logger.error(f"❌ Ошибка тика: {e}")
 
@@ -500,20 +500,17 @@ class RouletteBot:
         while True:
             if keyboard.is_pressed('f4'):
                 if not self.running:
-                    # ✅ Создаём эталон ТОЛЬКО здесь и только один раз
                     if not os.path.exists(self.name_check):
                         self._save_ui_ref()
                         self.logger.info("📸 Эталон интерфейса создан")
                 self.running = not self.running
                 self.logger.info(f"\n🔴 {'▶ ЗАПУСК' if self.running else '⏸ ПАУЗА'}\n")
                 time.sleep(0.5)
-            
             if keyboard.is_pressed('1') and keyboard.is_pressed('2'):
                 self.logger.info("\n💾 Сохранение и выход...")
                 self.save_state()
                 self.survival.stop()
                 break
-            
             if keyboard.is_pressed('1') and keyboard.is_pressed('3'):
                 root = Tk()
                 root.withdraw()
@@ -523,19 +520,18 @@ class RouletteBot:
                     self.load_state()
                     self.logger.info(f"✅ Папка обновлена: {f}")
                 time.sleep(0.5)
-
             if not self.running:
                 time.sleep(0.1)
                 continue
             if self.is_busy:
                 time.sleep(0.5)
                 continue
-            
             self.tick()
             time.sleep(0.5)
 
+
 if __name__ == "__main__":
-    print("🚀 Запуск Roulette Bot (Dual Balance v2)...")
+    print("🚀 Запуск Roulette Bot (Fixed v3)...")
     root = Tk()
     root.withdraw()
     folder = filedialog.askdirectory(title="📁 Папка для логов и памяти")
@@ -544,4 +540,3 @@ if __name__ == "__main__":
         RouletteBot(folder).run()
     else:
         print("❌ Отмена.")
-      
