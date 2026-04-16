@@ -9,8 +9,6 @@
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![Status](https://img.shields.io/badge/Status-Research-orange.svg)
 
-**Advanced Machine Learning System for Casino Roulette Pattern Recognition**
-
 </div>
 
 ---
@@ -18,7 +16,7 @@
 
 <a name="english"></a>
 ## 🇬 English Version
-
+**Advanced Machine Learning System for Casino Roulette Pattern Recognition**
 ###  Overview
 
 The **AI Roulette Learning System** is a sophisticated machine learning framework designed to analyze roulette game patterns using LSTM (Long Short-Term Memory) neural networks. This research project explores the application of deep learning techniques for pattern recognition in casino roulette games within the GTA 5 Majestic Roleplay environment.
