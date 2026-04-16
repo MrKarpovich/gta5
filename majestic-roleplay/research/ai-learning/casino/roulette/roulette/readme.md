@@ -11,8 +11,6 @@
 
 **Advanced Machine Learning System for Casino Roulette Pattern Recognition**
 
-[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Documentation](#documentation)
-
 </div>
 
 ---
