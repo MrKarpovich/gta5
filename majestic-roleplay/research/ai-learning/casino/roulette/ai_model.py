@@ -89,9 +89,9 @@ class AIBrain(nn.Module):
 
     def predict(self):
         # ✅ Всегда возвращаем 4 значения
-        if len(self.history) < 8: 
+        if len(self.history) < 8:
             return None, 0.0, {}, {}
-        
+
         X = torch.LongTensor([self.history[-8:]])
         with torch.no_grad():
             emb = self.embedding(X)
@@ -108,7 +108,7 @@ class AIBrain(nn.Module):
         best = max(ev, key=ev.get)
         confidence = ev[best]
         probs_dict = {REV_LABEL_MAP[i]: float(probs[i]) * 100 for i in range(4)}
-        
+
         return best, confidence, probs_dict, ev  # ✅ 4 значения
 
     def place_virtual_bet(self, amount, target):
@@ -267,14 +267,22 @@ class SurvivalManager:
         self.bot.logger.info("\n🍔 ПЕРСОНАЖ ГОЛОДЕН! Пауза...")
         self.bot.is_busy = True
         try:
-            self._press(0x71, 0x3C); time.sleep(2)
-            self._press(0xC0, 0x29); time.sleep(1)
-            self._click(1798, 951); time.sleep(2)
-            self._click(1801, 999); time.sleep(2)
-            self._press(0xC0, 0x29); time.sleep(1)
-            self._press(0x71, 0x3C); time.sleep(2)
-            self._click(147, 359); time.sleep(2)
-            self._click(158, 499); time.sleep(7)
+            self._press(0x71, 0x3C);
+            time.sleep(2)
+            self._press(0xC0, 0x29);
+            time.sleep(1)
+            self._click(1798, 951);
+            time.sleep(2)
+            self._click(1801, 999);
+            time.sleep(2)
+            self._press(0xC0, 0x29);
+            time.sleep(1)
+            self._press(0x71, 0x3C);
+            time.sleep(2)
+            self._click(147, 359);
+            time.sleep(2)
+            self._click(158, 499);
+            time.sleep(7)
             self.bot.logger.info("✅ Выживание завершено.\n")
         except Exception as e:
             self.bot.logger.error(f"❌ Ошибка выживания: {e}")
@@ -404,79 +412,90 @@ class RouletteBot:
         try:
             with mss.mss() as sct:
                 if not self._check_ui(sct): return
+
                 current_id = self._get_id(sct)
                 if current_id is None or current_id == self.last_game_id: return
 
                 history = self._get_history(sct)
                 clean_hist = [x for x in history if x != "Empty"]
+
+                # 🔴 ВАЖНО: last_result - это результат ПРЕДЫДУЩЕЙ игры (current_id - 1)
                 last_result = clean_hist[0] if clean_hist else "Unknown"
+                previous_game_id = current_id - 1  # Игра, которой принадлежит результат
 
-                self.logger.info(f"\n🔄 Игра #{current_id} | Результат: {last_result}")
+                self.logger.info(f"\n{'=' * 70}")
+                self.logger.info(f"🎮 ИГРА #{current_id} | Завершена игра #{previous_game_id}: {last_result}")
+                self.logger.info(f"{'=' * 70}")
 
-                # 1. Обучаем ИИ
-                self.ai.add_result(last_result)
+                # 1. Сначала ПРОВЕРЯЕМ результат предыдущей игры
+                if last_result != "Unknown":
+                    if last_result == "10X":
+                        # ✅ СБРОС счётчика! 10X выпал!
+                        self.logger.info(f"💰🎉 10X ВЫПАЛ в игре #{previous_game_id}!")
+                        self.logger.info(f"🔄 Сброс счётчика игр без 10X")
+                        # Сбрасываем счётчик - добавляем 10X в историю
+                        self.ai.add_result(last_result)
+                    else:
+                        # Просто добавляем результат в историю
+                        self.ai.add_result(last_result)
+                        no_10x_count = sum(1 for h in reversed(self.ai.history) if h != 3)
+                        self.logger.info(f"⏳ Игр без 10X подряд: {no_10x_count}/20")
 
-                # 2. Прогноз ИИ (теперь всегда 4 значения)
-                ai_pred, ai_ev, ai_probs, ev_dict = self.ai.predict()
+                # 2. Прогноз ИИ для ТЕКУЩЕЙ игры (current_id)
+                ai_pred, ai_conf, ai_probs, ev_dict = self.ai.predict()
 
-                if ai_pred:
-                    self.ai.total_preds += 1
-                    if ai_pred == last_result:
-                        self.ai.correct_preds += 1
-                    status = "✅" if ai_pred == last_result else "❌"
-                    acc = (self.ai.correct_preds / self.ai.total_preds * 100) if self.ai.total_preds else 0
-                    ev_str = " | ".join(
-                        [f"{k}: EV={v:.2f}" for k, v in sorted(ev_dict.items(), key=lambda x: x[1], reverse=True)])
-                    self.logger.info(f"🤖 AI: Лучший по EV: {ai_pred} (EV={ai_ev:.2f}) {status}")
-                    self.logger.info(
-                        f"📊 Вероятности: {' | '.join([f'{k}:{v:.1f}%' for k, v in sorted(ai_probs.items(), key=lambda x: x[1], reverse=True)])}")
-                    self.logger.info(f"📈 Ожидаемая ценность: {ev_str}")
-                    self.logger.info(f"🎯 Точность: {acc:.1f}% ({self.ai.correct_preds}/{self.ai.total_preds})")
+                if ai_pred and ev_dict:
+                    sorted_ev = sorted(ev_dict.items(), key=lambda x: x[1], reverse=True)
+                    self.logger.info(f"\n🤖 AI ПРОГНОЗ для игры #{current_id}:")
+                    self.logger.info(f"   🎯 Лучший выбор: {ai_pred} (EV: {ai_conf:.2f})")
 
-                    if ai_ev > 1.5:
-                        bet_amount = min(1000, max(10, int(ai_ev * 50)))
-                        self.ai.place_virtual_bet(bet_amount, ai_pred)
-                        self.logger.info(f"🎮 AI виртуальная ставка: ${bet_amount} на {ai_pred}")
-                    if self.ai.virtual_target:
-                        reward = self.ai.process_virtual_result(last_result)
-                        if reward > 0:
-                            self.logger.info(
-                                f"💰 AI виртуальный выигрыш: +${reward:.0f} (Баланс: ${self.ai.virtual_balance:.0f})")
-                        elif reward < 0:
-                            self.logger.info(
-                                f"📉 AI виртуальный проигрыш: ${reward:.0f} (Баланс: ${self.ai.virtual_balance:.0f})")
+                    for i, (label, ev) in enumerate(sorted_ev[:3], 1):
+                        prob = ai_probs.get(label, 0)
+                        self.logger.info(f"   {i}. {label}: EV={ev:.2f} (вероятность: {prob:.1f}%)")
 
-                # 3. Твоя тактика 10X
-                just_won = False  # ✅ Флаг: только что выиграли?
+                    if self.ai.total_preds > 0:
+                        accuracy = (self.ai.correct_preds / self.ai.total_preds * 100)
+                        self.logger.info(
+                            f"   📈 Точность: {accuracy:.1f}% ({self.ai.correct_preds}/{self.ai.total_preds})")
+
+                # 3. Логика ставок
+                action_taken = False
+
                 if self.betting.active:
+                    # Проверяем результат ПРЕДЫДУЩЕЙ игры
                     if last_result == "10X":
                         won = self.betting.process_result(True)
                         if won:
                             profit = self.ai.process_real_result(last_result)
-                            self.logger.info(
-                                f"💰🎉 ТВОЙ ВЫИГРЫШ! +${profit:.0f} | Реальный баланс: ${self.ai.real_balance:.0f}")
-                            just_won = True  # ✅ Запоминаем победу
+                            self.logger.info(f"\n💰🎉 ПОБЕДА! 10X выпал в игре #{previous_game_id}!")
+                            self.logger.info(f"   💵 Выигрыш: ${profit:.0f}")
+                            self.logger.info(f"   💳 Баланс: ${self.ai.real_balance:.0f}")
+                            self.logger.info(f"   🔄 Стратегия сброшена, ждём новые 20 игр...")
+                            action_taken = True
                     else:
                         self.betting.process_result(False)
-                        self.logger.info(
-                            f"📉 Не 10X. Уровень: ${self.betting.amounts[self.betting.level]}, Попытка: {self.betting.attempts}")
                         self.ai.process_real_result(last_result)
-                        self.logger.info(f"💸 Реальный баланс: ${self.ai.real_balance:.0f}")
+                        self.logger.info(f"\n❌ Не 10X в игре #{previous_game_id} (выпало {last_result})")
+                        self.logger.info(f"   📉 Попытка {self.betting.attempts}/10 на уровне {self.betting.level + 1}")
+                        self.logger.info(f"   💳 Баланс: ${self.ai.real_balance:.0f}")
 
-                # ✅ Активация ТОЛЬКО если не выиграли в этом раунде
-                if not self.betting.active and not just_won:
-                    # Считаем ПОДРЯД идущие НЕ-10X от конца истории
-                    no_10x = 0
-                    for h in reversed(self.ai.history):
-                        if h == 3:  # 10X
-                            break
-                        no_10x += 1
-                    if no_10x >= 20:
+                        if self.betting.attempts == 0 and self.betting.level > 0:
+                            self.logger.info(
+                                f"   ⬆️ ПОВЫШЕНИЕ УРОВНЯ! Новая ставка: ${self.betting.amounts[self.betting.level]}")
+
+                # 🔥 Активация стратегии (считаем ПОСЛЕ добавления результата)
+                if not self.betting.active and not action_taken:
+                    no_10x_count = sum(1 for h in reversed(self.ai.history) if h != 3)
+                    if no_10x_count >= 20:
                         self.betting.activate()
-                        self.logger.info(f"🔥 ТРИГГЕР! 10X не было {no_10x} игр. Начинаю серию ставок!")
+                        self.logger.info(f"\n🔥 ТРИГГЕР АКТИВИРОВАН! 🔥🔥🔥")
+                        self.logger.info(f"   📊 10X не было {no_10x_count} игр подряд!")
+                        self.logger.info(f"   💰 Начинаю серию ставок на 10X")
+                        self.logger.info(f"   📈 Уровни: $10 (10x) → $20 (10x) → $40 (∞)")
+                        action_taken = True
 
-                # Размещение ставки
-                if self.betting.active:
+                # 💸 Размещение ставки для ТЕКУЩЕЙ игры
+                if self.betting.active and not action_taken:
                     self.betting.place(lambda x, y: (
                         win32api.SetCursorPos((x, y)),
                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0),
@@ -484,17 +503,35 @@ class RouletteBot:
                         win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                     )[0])
                     self.ai.place_real_bet(self.betting.amounts[self.betting.level])
-                    self.logger.info(f"💰 Твоя реальная ставка: ${self.betting.amounts[self.betting.level]} на 10X")
 
-                self.logger.info(
-                    f"💰 БАЛАНСЫ: Реальный: ${self.ai.real_balance:.0f} | Виртуальный: ${self.ai.virtual_balance:.0f}")
-                self.logger.info("─" * 60)
+                    self.logger.info(f"\n💸 СТАВКА РАЗМЕЩЕНА на игру #{current_id}!")
+                    self.logger.info(f"   🎯 Цель: 10X")
+                    self.logger.info(f"   💵 Сумма: ${self.betting.amounts[self.betting.level]}")
+                    self.logger.info(f"   💳 Остаток: ${self.ai.real_balance:.0f}")
+                    action_taken = True
+
+                # 📊 Итоговая статистика
+                no_10x_count = sum(1 for h in reversed(self.ai.history) if h != 3)
+                bar_length = 30
+                filled = int((no_10x_count / 20) * bar_length) if no_10x_count < 20 else bar_length
+                bar = "█" * filled + "░" * (bar_length - filled)
+                percentage = min(100, (no_10x_count / 20) * 100)
+
+                self.logger.info(f"\n📊 СТАТИСТИКА:")
+                self.logger.info(f"   📈 Прогресс до ставок: {no_10x_count}/20 ({percentage:.1f}%)")
+                self.logger.info(f"   [{bar}]")
+                self.logger.info(f"   💳 Реальный баланс: ${self.ai.real_balance:.0f}")
+                self.logger.info(f"   🎮 Виртуальный баланс: ${self.ai.virtual_balance:.0f}")
+                self.logger.info(f"   🎯 Статус: {'💰 АКТИВНЫЕ СТАВКИ' if self.betting.active else '⏳ НАБЛЮДЕНИЕ'}")
+                self.logger.info(f"{'=' * 70}\n")
 
                 self.last_game_id = current_id
                 self.save_state()
 
         except Exception as e:
             self.logger.error(f"❌ Ошибка тика: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
 
     def run(self):
         while True:
