@@ -16,6 +16,7 @@
 </div>
 
 ---
+![Interface Preview](interface.png)
 
 <a name="english"></a>
 ## 🇬 English Version
