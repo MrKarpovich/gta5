@@ -17,15 +17,17 @@ import threading
 from datetime import datetime
 from tkinter import Tk, filedialog
 
+
 # ANSI цвета для консоли (работают в современных терминалах)
 class Colors:
-    GREEN = '\033[92m'      # Игры, номера
+    GREEN = '\033[92m'  # Игры, номера
     ORANGE = '\033[38;5;208m'  # ИИ, прогнозы
-    RED = '\033[91m'        # Реальные деньги, ставки
-    BLUE = '\033[94m'       # Статистика
-    YELLOW = '\033[93m'     # Предупреждения
+    RED = '\033[91m'  # Реальные деньги, ставки
+    BLUE = '\033[94m'  # Статистика
+    YELLOW = '\033[93m'  # Предупреждения
     RESET = '\033[0m'
     BOLD = '\033[1m'
+
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -48,7 +50,7 @@ INPUT_FIELD_CENTER = (560, 889)
 BET_BUTTON_CENTER = (801, 983)
 
 # 🔧 НАСТРОЙКИ СТРАТЕГИИ
-TRIGGER_THRESHOLD = 25  # 🔥 Порог активации: 25 игр без 10X (было 20)
+TRIGGER_THRESHOLD = 20  # 🔥 Порог активации: 25 игр без 10X (было 20)
 MAX_ATTEMPTS_PER_LEVEL = 10
 BET_LEVELS = [10, 20, 40]  # Прогрессия ставок
 
@@ -68,21 +70,21 @@ class AIBrain(nn.Module):
         self.lstm = nn.LSTM(16, 32, batch_first=True)
         self.fc = nn.Linear(32, 4)
         self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
-        
+
         self.history = []  # История для обучения
-        
+
         # 💰 Виртуальный баланс (для обучения ИИ)
         self.virtual_balance = 1000.0
         self.virtual_bet_amount = 0
         self.virtual_target = None
         self.virtual_total_bets = 0
         self.virtual_wins = 0
-        
+
         # 🎯 Реальный баланс (ваша стратегия)
         self.real_balance = 200.0
         self.real_bet_amount = 0
         self.real_target = '10X'
-        
+
         # 📊 Статистика
         self.total_preds = 0
         self.correct_preds = 0
@@ -117,9 +119,9 @@ class AIBrain(nn.Module):
 
     def predict(self):
         """Возвращает прогноз ИИ: лучший выбор, уверенность, вероятности, EV"""
-        if len(self.history) < 8: 
+        if len(self.history) < 8:
             return None, 0.0, {}, {}
-        
+
         X = torch.LongTensor([self.history[-8:]])
         with torch.no_grad():
             emb = self.embedding(X)
@@ -137,12 +139,12 @@ class AIBrain(nn.Module):
         best = max(ev, key=ev.get)
         confidence = ev[best]
         probs_dict = {REV_LABEL_MAP[i]: float(probs[i]) * 100 for i in range(4)}
-        
+
         return best, confidence, probs_dict, ev
 
     def place_virtual_bet(self, amount, target):
         """ИИ размещает виртуальную ставку для обучения"""
-        if target not in LABEL_MAP or amount <= 0: 
+        if target not in LABEL_MAP or amount <= 0:
             return False
         self.virtual_bet_amount = amount
         self.virtual_target = target
@@ -152,12 +154,12 @@ class AIBrain(nn.Module):
 
     def process_virtual_result(self, actual_label):
         """Обработка результата виртуальной ставки ИИ"""
-        if self.virtual_target is None: 
+        if self.virtual_target is None:
             return 0, None
-        
+
         reward = 0
         win_info = None
-        
+
         if actual_label == self.virtual_target:
             mult = MULTIPLIERS[actual_label]
             win_amount = self.virtual_bet_amount * mult
@@ -168,7 +170,7 @@ class AIBrain(nn.Module):
         else:
             reward = -self.virtual_bet_amount
             win_info = f"-${self.virtual_bet_amount:.0f}"
-        
+
         self.virtual_target = None
         return reward, win_info
 
@@ -214,7 +216,8 @@ class AIBrain(nn.Module):
                 self.total_preds = stats.get('total', 0)
                 self.correct_preds = stats.get('correct', 0)
                 return True
-            except: pass
+            except:
+                pass
         return False
 
 
@@ -246,7 +249,7 @@ class BettingSystem:
 
     def place(self, click_func):
         """Размещает ставку в игре"""
-        if self.last_bet_round is not None: 
+        if self.last_bet_round is not None:
             return False
         amount = self.amounts[self.level]
         click_func(*INPUT_FIELD_CENTER)
@@ -269,7 +272,7 @@ class BettingSystem:
             self.total_won += win_amount
             self.deactivate()
             return True, win_amount - self.amounts[self.level]
-        
+
         self.attempts += 1
         if self.attempts >= self.max_attempts and self.level < 2:
             self.level += 1
@@ -283,7 +286,7 @@ class BettingSystem:
 class SurvivalManager:
     def __init__(self, bot):
         self.bot = bot
-        self.next_run = time.time() + 3600
+        self.next_run = time.time() + 1800
         self.active = False
         self.thread = None
 
@@ -308,24 +311,32 @@ class SurvivalManager:
     def _loop(self):
         while self.active:
             time.sleep(1)
-            if self.bot.betting.active: 
+            if self.bot.betting.active:
                 continue  # 🔒 Приоритет ставок над едой
             if time.time() >= self.next_run:
                 self._execute()
-                self.next_run = time.time() + 3600
+                self.next_run = time.time() + 1800
 
     def _execute(self):
         self.bot.logger.info(f"\n{Colors.YELLOW}🍔 ПЕРСОНАЖ ГОЛОДЕН! Пауза...{Colors.RESET}")
         self.bot.is_busy = True
         try:
-            self._press(0x71, 0x3C); time.sleep(2)
-            self._press(0xC0, 0x29); time.sleep(1)
-            self._click(1798, 951); time.sleep(2)
-            self._click(1801, 999); time.sleep(2)
-            self._press(0xC0, 0x29); time.sleep(1)
-            self._press(0x71, 0x3C); time.sleep(2)
-            self._click(147, 359); time.sleep(2)
-            self._click(158, 499); time.sleep(7)
+            self._press(0x71, 0x3C);
+            time.sleep(2)
+            self._press(0xC0, 0x29);
+            time.sleep(1)
+            self._click(1798, 951);
+            time.sleep(2)
+            self._click(1801, 999);
+            time.sleep(2)
+            self._press(0xC0, 0x29);
+            time.sleep(1)
+            self._press(0x71, 0x3C);
+            time.sleep(2)
+            self._click(147, 359);
+            time.sleep(2)
+            self._click(158, 499);
+            time.sleep(7)
             self.bot.logger.info(f"{Colors.GREEN}✅ Выживание завершено.{Colors.RESET}\n")
         except Exception as e:
             self.bot.logger.error(f"{Colors.RED}❌ Ошибка выживания: {e}{Colors.RESET}")
@@ -338,22 +349,22 @@ class SurvivalManager:
 # ==========================================
 class ColoredFormatter(logging.Formatter):
     """Добавляет цвета в консольный вывод, но не в файл"""
-    
+
     LEVEL_COLORS = {
         'INFO': Colors.GREEN,
         'WARNING': Colors.YELLOW,
         'ERROR': Colors.RED,
     }
-    
+
     def format(self, record):
         # Сохраняем оригинальный формат
         original = super().format(record)
-        
+
         # Если вывод в консоль - добавляем цвета
         if hasattr(record, 'color') and record.color:
             color = self.LEVEL_COLORS.get(record.levelname, Colors.RESET)
             return f"{color}{original}{Colors.RESET}"
-        
+
         return original
 
 
@@ -368,27 +379,27 @@ class RouletteBot:
         self.name_check = os.path.join(folder, "name_check.png")
         self.state_file = os.path.join(folder, "state.pkl")
         self.ai_file = os.path.join(folder, "ai_model.pt")
-        
+
         # 🎨 Настройка логгера с цветами
         self.logger = logging.getLogger("Bot")
         self.logger.setLevel(logging.INFO)
         self.logger.handlers = []  # Очищаем хендлеры
-        
+
         # Файловый хендлер (без цветов)
         file_handler = logging.FileHandler(self.log_file, encoding='utf-8')
         file_handler.setFormatter(logging.Formatter('%(asctime)s | %(message)s'))
         self.logger.addHandler(file_handler)
-        
+
         # Консольный хендлер (с цветами)
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(ColoredFormatter('%(asctime)s | %(message)s'))
         self.logger.addHandler(console_handler)
-        
+
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w', newline='', encoding='utf-8') as f:
                 csv.writer(f).writerow([
-                    "Time", "CurrentID", "PreviousID", "Result", 
-                    "AI_Pred", "AI_EV", "VirtualBal", "RealBal", 
+                    "Time", "CurrentID", "PreviousID", "Result",
+                    "AI_Pred", "AI_EV", "VirtualBal", "RealBal",
                     "BetActive", "Win", "StreakNo10X"
                 ])
 
@@ -396,27 +407,28 @@ class RouletteBot:
         self.betting = BettingSystem()
         self.survival = SurvivalManager(self)
         self.survival.start()
-        
+
         self.last_game_id = 0
         self.is_busy = False
         self.running = False
-        
+
         # 🔑 ОТДЕЛЬНЫЙ СЧЁТЧИК для активации (не зависит от ai.history!)
         self.streak_no_10x = 0
-        
+
         self.load_state()
         self._log_header()
 
     def _log_header(self):
         """Красивый заголовок при запуске"""
-        self.logger.info(f"\n{Colors.BOLD}{'='*70}{Colors.RESET}")
+        self.logger.info(f"\n{Colors.BOLD}{'=' * 70}{Colors.RESET}")
         self.logger.info(f"{Colors.BOLD}🤖 ROULETTE BOT v4.0 - AI + Strategy{Colors.RESET}")
-        self.logger.info(f"{Colors.BOLD}{'='*70}{Colors.RESET}")
+        self.logger.info(f"{Colors.BOLD}{'=' * 70}{Colors.RESET}")
         self.logger.info(f"{Colors.GREEN}🎮 Текущая игра: #{self.last_game_id}{Colors.RESET}")
         self.logger.info(f"{Colors.RED}💰 Реальный баланс: ${self.ai.real_balance:.0f}{Colors.RESET}")
         self.logger.info(f"{Colors.ORANGE}🧠 Виртуальный баланс ИИ: ${self.ai.virtual_balance:.0f}{Colors.RESET}")
-        self.logger.info(f"{Colors.BLUE}📊 Стратегия: {TRIGGER_THRESHOLD} игр без 10X → Ставки $10→$20→$40{Colors.RESET}")
-        self.logger.info(f"{Colors.BOLD}{'='*70}{Colors.RESET}")
+        self.logger.info(
+            f"{Colors.BLUE}📊 Стратегия: {TRIGGER_THRESHOLD} игр без 10X → Ставки $10→$20→$40{Colors.RESET}")
+        self.logger.info(f"{Colors.BOLD}{'=' * 70}{Colors.RESET}")
         self.logger.info(f"\n{Colors.YELLOW}F4 - Старт/Стоп | 1+2 - Выход | 1+3 - Сменить папку{Colors.RESET}\n")
 
     def _save_ui_ref(self):
@@ -427,7 +439,8 @@ class RouletteBot:
                 x, y, w, h = ZONE_GAME_TEXT
                 img = np.array(sct.grab({"left": x, "top": y, "width": w, "height": h}))
                 cv2.imwrite(self.name_check, cv2.cvtColor(img, cv2.COLOR_BGRA2BGR))
-        except: pass
+        except:
+            pass
 
     def save_state(self):
         try:
@@ -445,7 +458,8 @@ class RouletteBot:
             with open(self.state_file, 'wb') as f:
                 pickle.dump(state, f)
             self.ai.save(self.ai_file)
-        except: pass
+        except:
+            pass
 
     def load_state(self):
         if os.path.exists(self.state_file):
@@ -464,8 +478,9 @@ class RouletteBot:
                     self.ai.real_balance = state['ai_bal']
                 if 'virt_bal' in state:
                     self.ai.virtual_balance = state['virt_bal']
-            except: pass
-        
+            except:
+                pass
+
         if not self.ai.load(self.ai_file):
             self.logger.warning(f"{Colors.YELLOW}⚠️ Не удалось загрузить ИИ, начинаю с нуля{Colors.RESET}")
             self.ai = AIBrain()
@@ -484,10 +499,10 @@ class RouletteBot:
         x, y, w, h = ZONE_GAME_TEXT
         img = np.array(sct.grab({"left": x, "top": y, "width": w, "height": h}))
         bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-        if not os.path.exists(self.name_check): 
+        if not os.path.exists(self.name_check):
             return True
         ref = cv2.imread(self.name_check)
-        if ref is None or ref.shape != bgr.shape: 
+        if ref is None or ref.shape != bgr.shape:
             return False
         diff = cv2.absdiff(ref, bgr)
         nz = cv2.countNonZero(cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY))
@@ -504,7 +519,7 @@ class RouletteBot:
             min_d, best = float('inf'), "Unknown"
             for name, (tb, tg, tr) in COLOR_TARGETS.items():
                 d = (b - tb) ** 2 + (g - tg) ** 2 + (r - tr) ** 2
-                if d < min_d: 
+                if d < min_d:
                     min_d, best = d, name
             res.append(best if min_d < 8000 else "Empty")
         return res
@@ -516,31 +531,31 @@ class RouletteBot:
         return f"{Colors.RED}{old_bal:.0f}${sign}{change:.0f}$ = {new_bal:.0f}${Colors.RESET}"
 
     def tick(self):
-        if self.is_busy: 
+        if self.is_busy:
             return
         try:
             with mss.mss() as sct:
-                if not self._check_ui(sct): 
+                if not self._check_ui(sct):
                     return
-                
+
                 current_id = self._get_id(sct)
-                if current_id is None or current_id == self.last_game_id: 
+                if current_id is None or current_id == self.last_game_id:
                     return
 
                 history = self._get_history(sct)
                 clean_hist = [x for x in history if x != "Empty"]
-                
+
                 # 🔴 last_result = результат ПРЕДЫДУЩЕЙ игры
                 last_result = clean_hist[0] if clean_hist else "Unknown"
                 previous_game_id = current_id - 1
 
                 # 🎨 ЗАГОЛОВОК (зелёный - номера игр)
-                self.logger.info(f"\n{Colors.BOLD}{'='*70}{Colors.RESET}")
+                self.logger.info(f"\n{Colors.BOLD}{'=' * 70}{Colors.RESET}")
                 self.logger.info(
                     f"{Colors.GREEN}🎮 ИГРА #{current_id} | "
                     f"Завершена игра #{previous_game_id}: {last_result}{Colors.RESET}"
                 )
-                self.logger.info(f"{Colors.BOLD}{'='*70}{Colors.RESET}")
+                self.logger.info(f"{Colors.BOLD}{'=' * 70}{Colors.RESET}")
 
                 # ==========================================
                 # 1️⃣ ОБРАБОТКА РЕЗУЛЬТАТА ПРЕДЫДУЩЕЙ ИГРЫ
@@ -548,7 +563,7 @@ class RouletteBot:
                 if last_result != "Unknown":
                     # Обновляем ИИ (всегда)
                     self.ai.add_result(last_result)
-                    
+
                     # 🔑 Обновляем ОТДЕЛЬНЫЙ счётчик (не ai.history!)
                     if last_result == "10X":
                         self.streak_no_10x = 0  # ✅ СБРОС при 10X!
@@ -559,36 +574,36 @@ class RouletteBot:
                 # 2️⃣ ПРОГНОЗ ИИ (оранжевый цвет)
                 # ==========================================
                 ai_pred, ai_conf, ai_probs, ev_dict = self.ai.predict()
-                
+
                 if ai_pred and ev_dict:
                     sorted_ev = sorted(ev_dict.items(), key=lambda x: x[1], reverse=True)
-                    
+
                     self.logger.info(f"\n{Colors.ORANGE}🤖 AI ПРОГНОЗ для игры #{current_id}:{Colors.RESET}")
                     self.logger.info(
                         f"{Colors.ORANGE}   🎯 Лучший выбор: {ai_pred} (EV: {ai_conf:.2f}){Colors.RESET}"
                     )
-                    
+
                     for i, (label, ev) in enumerate(sorted_ev[:3], 1):
                         prob = ai_probs.get(label, 0)
                         bar = "█" * int(ev * 3)
                         self.logger.info(
                             f"{Colors.ORANGE}   {i}. {label}: EV={ev:.2f} [{bar}] (вероятность: {prob:.1f}%){Colors.RESET}"
                         )
-                    
+
                     if self.ai.total_preds > 0:
                         accuracy = (self.ai.correct_preds / self.ai.total_preds * 100)
                         self.logger.info(
                             f"{Colors.ORANGE}   📈 Точность: {accuracy:.1f}% ({self.ai.correct_preds}/{self.ai.total_preds}){Colors.RESET}"
                         )
-                    
+
                     # 🎲 ВИРТУАЛЬНЫЕ СТАВКИ ИИ
                     if ai_conf >= AI_MIN_EV_TO_BET and not self.betting.active:
                         bet_amount = min(AI_MAX_VIRTUAL_BET, max(10, int(ai_conf * AI_BASE_BET)))
                         old_bal = self.ai.virtual_balance
-                        
+
                         if self.ai.place_virtual_bet(bet_amount, ai_pred):
                             reward, win_info = self.ai.process_virtual_result(last_result)
-                            
+
                             if win_info:
                                 self.logger.info(
                                     f"{Colors.ORANGE}   🎮 ИИ ставка: ${bet_amount} на {ai_pred} → {win_info} "
@@ -599,15 +614,16 @@ class RouletteBot:
                 # 3️⃣ ВАША СТРАТЕГИЯ 10X (красный цвет)
                 # ==========================================
                 action_taken = False
-                
+
                 if self.betting.active:
                     if last_result == "10X":
                         # ✅ ПОБЕДА!
                         won, profit = self.betting.process_result(True)
                         old_bal = self.ai.real_balance
                         profit_info, _ = self.ai.process_real_result(last_result)
-                        
-                        self.logger.info(f"\n{Colors.RED}💰🎉 ПОБЕДА! 10X выпал в игре #{previous_game_id}!{Colors.RESET}")
+
+                        self.logger.info(
+                            f"\n{Colors.RED}💰🎉 ПОБЕДА! 10X выпал в игре #{previous_game_id}!{Colors.RESET}")
                         self.logger.info(
                             f"{Colors.RED}   💵 Выигрыш: ${profit:.0f} | "
                             f"Баланс: {self._format_balance_change(old_bal, self.ai.real_balance)}{Colors.RESET}"
@@ -617,15 +633,17 @@ class RouletteBot:
                             f"Выиграно ${self.betting.total_won:.0f} | "
                             f"Чистая прибыль: ${self.betting.total_won - self.betting.total_spent:.0f}{Colors.RESET}"
                         )
-                        self.logger.info(f"{Colors.RED}   🔄 Стратегия сброшена, ждём новые {TRIGGER_THRESHOLD} игр...{Colors.RESET}")
+                        self.logger.info(
+                            f"{Colors.RED}   🔄 Стратегия сброшена, ждём новые {TRIGGER_THRESHOLD} игр...{Colors.RESET}")
                         action_taken = True
                     else:
                         # ❌ Проигрыш раунда
                         _, loss = self.betting.process_result(False)
                         old_bal = self.ai.real_balance
                         _, loss_info = self.ai.process_real_result(last_result)
-                        
-                        self.logger.info(f"\n{Colors.RED}❌ Не 10X в игре #{previous_game_id} (выпало {last_result}){Colors.RESET}")
+
+                        self.logger.info(
+                            f"\n{Colors.RED}❌ Не 10X в игре #{previous_game_id} (выпало {last_result}){Colors.RESET}")
                         self.logger.info(
                             f"{Colors.RED}   📉 Попытка {self.betting.attempts}/{MAX_ATTEMPTS_PER_LEVEL} | "
                             f"Уровень {self.betting.level + 1} (ставка ${self.betting.amounts[self.betting.level]}){Colors.RESET}"
@@ -633,7 +651,7 @@ class RouletteBot:
                         self.logger.info(
                             f"{Colors.RED}   💳 Баланс: {self._format_balance_change(old_bal, self.ai.real_balance)}{Colors.RESET}"
                         )
-                        
+
                         if self.betting.attempts == 0 and self.betting.level > 0:
                             self.logger.info(
                                 f"{Colors.RED}   ⬆️ ПОВЫШЕНИЕ УРОВНЯ! Новая ставка: ${self.betting.amounts[self.betting.level]}{Colors.RESET}"
@@ -658,16 +676,17 @@ class RouletteBot:
                 if self.betting.active and not action_taken:
                     old_bal = self.ai.real_balance
                     if self.betting.place(lambda x, y: (
-                        win32api.SetCursorPos((x, y)),
-                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0),
-                        time.sleep(0.05),
-                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
+                            win32api.SetCursorPos((x, y)),
+                            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0),
+                            time.sleep(0.05),
+                            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                     )[0]):
                         self.ai.place_real_bet(self.betting.amounts[self.betting.level])
-                        
+
                         self.logger.info(f"\n{Colors.RED}💸 СТАВКА РАЗМЕЩЕНА на игру #{current_id}!{Colors.RESET}")
                         self.logger.info(f"{Colors.RED}   🎯 Цель: 10X{Colors.RESET}")
-                        self.logger.info(f"{Colors.RED}   💵 Сумма: ${self.betting.amounts[self.betting.level]}{Colors.RESET}")
+                        self.logger.info(
+                            f"{Colors.RED}   💵 Сумма: ${self.betting.amounts[self.betting.level]}{Colors.RESET}")
                         self.logger.info(
                             f"{Colors.RED}   💳 Баланс: {self._format_balance_change(old_bal, self.ai.real_balance)}{Colors.RESET}"
                         )
@@ -677,14 +696,14 @@ class RouletteBot:
                 # 📊 ИТОГОВАЯ СТАТИСТИКА
                 # ==========================================
                 bar_length = 30
-                filled = int((self.streak_no_10x / TRIGGER_THRESHOLD) * bar_length) 
+                filled = int((self.streak_no_10x / TRIGGER_THRESHOLD) * bar_length)
                 filled = min(filled, bar_length)
                 bar = f"{Colors.GREEN}{'█' * filled}{Colors.RESET}{Colors.YELLOW}{'░' * (bar_length - filled)}{Colors.RESET}"
                 percentage = min(100, (self.streak_no_10x / TRIGGER_THRESHOLD) * 100)
-                
+
                 status_color = Colors.RED if self.betting.active else Colors.BLUE
                 status_text = "💰 АКТИВНЫЕ СТАВКИ" if self.betting.active else "⏳ НАБЛЮДЕНИЕ"
-                
+
                 self.logger.info(f"\n{Colors.BOLD}📊 СТАТИСТИКА:{Colors.RESET}")
                 self.logger.info(
                     f"   📈 Прогресс до ставок: {Colors.BOLD}{self.streak_no_10x}/{TRIGGER_THRESHOLD}{Colors.RESET} ({percentage:.1f}%)"
@@ -695,12 +714,12 @@ class RouletteBot:
                     f"{Colors.ORANGE}🎮 Виртуальный: ${self.ai.virtual_balance:.0f}{Colors.RESET}"
                 )
                 self.logger.info(f"   {status_color}🎯 Статус: {status_text}{Colors.RESET}")
-                self.logger.info(f"{Colors.BOLD}{'='*70}{Colors.RESET}\n")
+                self.logger.info(f"{Colors.BOLD}{'=' * 70}{Colors.RESET}\n")
 
                 # Сохранение
                 self.last_game_id = current_id
                 self.save_state()
-                    
+
         except Exception as e:
             self.logger.error(f"{Colors.RED}❌ Ошибка тика: {e}{Colors.RESET}")
             import traceback
@@ -717,13 +736,13 @@ class RouletteBot:
                 status = f"{Colors.GREEN}▶ ЗАПУСК{Colors.RESET}" if self.running else f"{Colors.YELLOW}⏸ ПАУЗА{Colors.RESET}"
                 self.logger.info(f"\n🔴 {status}\n")
                 time.sleep(0.5)
-            
+
             if keyboard.is_pressed('1') and keyboard.is_pressed('2'):
                 self.logger.info(f"\n{Colors.YELLOW}💾 Сохранение и выход...{Colors.RESET}")
                 self.save_state()
                 self.survival.stop()
                 break
-            
+
             if keyboard.is_pressed('1') and keyboard.is_pressed('3'):
                 root = Tk()
                 root.withdraw()
@@ -734,13 +753,13 @@ class RouletteBot:
                     self.logger.info(f"{Colors.GREEN}✅ Папка обновлена: {f}{Colors.RESET}")
                 time.sleep(0.5)
 
-            if not self.running: 
+            if not self.running:
                 time.sleep(0.1)
                 continue
-            if self.is_busy: 
+            if self.is_busy:
                 time.sleep(0.5)
                 continue
-            
+
             self.tick()
             time.sleep(0.5)
 
