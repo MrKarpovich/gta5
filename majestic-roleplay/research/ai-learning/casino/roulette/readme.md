@@ -1,7 +1,7 @@
 <div align="center">
 
 # 🎰 AI Roulette Learning System
-
+## Мастер сноса кошелька! За день заработает, а потом снесет вам весь кошелк! :)
 [English](#english) | [Русский](#russian)
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
