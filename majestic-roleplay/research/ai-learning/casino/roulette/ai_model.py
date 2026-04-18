@@ -54,11 +54,11 @@ BET_2X_BUTTON_CENTER = (429, 982)
 # 🔧 СТРАТЕГИЯ 10X
 TRIGGER_THRESHOLD = 20
 MAX_ATTEMPTS_PER_LEVEL = 10
-BET_LEVELS = [10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120]
+BET_LEVELS = [10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 0]
 
 # 🔧 СТРАТЕГИЯ 2X
-BET_2X_LEVELS = [10, 10, 20, 40, 80, 160, 320, 640, 0, 10, 20, 1280, 0]
-TRIGGER_2X_THRESHOLD = 0  # 0 = всегда ставит
+BET_2X_LEVELS = [10, 10, 20, 40, 80, 160, 320, 0, 640, 0]
+TRIGGER_2X_THRESHOLD = 3  # 0 = всегда ставит
 
 # 🔧 ИИ
 AI_MIN_EV_TO_BET = 1.2
@@ -66,9 +66,9 @@ AI_MAX_VIRTUAL_BET = 1000
 AI_BASE_BET = 50
 
 # 🔧 ТАЙМИНГИ ПИТАНИЯ
-EAT_INTERVAL = 1250
-EAT_KEY_DELAY = 3
-EAT_CLICK_DELAY = 3
+EAT_INTERVAL = 2250
+EAT_KEY_DELAY = 1.7
+EAT_CLICK_DELAY = 1.8
 EAT_RETURN_DELAY = 3
 
 
@@ -414,10 +414,10 @@ class SurvivalManager:
             self._press(0x71, 0x3C)
             time.sleep(EAT_RETURN_DELAY)
             self._click(147, 359)
-            time.sleep(EAT_RETURN_DELAY)
+            time.sleep(EAT_CLICK_DELAY)
             self._click(158, 499)
-            time.sleep(EAT_RETURN_DELAY * 2)
-            time.sleep(1.0)
+            time.sleep(EAT_CLICK_DELAY * 2)
+            time.sleep(5.0)
             self.bot.logger.info(f"{Colors.GREEN}✅ Питание завершено. Возврат в игру.{Colors.RESET}\n")
         except Exception as e:
             self.bot.logger.error(f"{Colors.RED}❌ Ошибка процедуры питания: {e}{Colors.RESET}")
